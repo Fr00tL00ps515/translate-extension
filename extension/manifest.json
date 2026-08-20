@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Translate Exporter",
+  "version": "1.0",
+  "description": "Send translated words to a custom endpoint",
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["https://translate.google.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
