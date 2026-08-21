@@ -1,10 +1,7 @@
-const SERVER_URL = "https://your-server-domain.com/api/save-word";
+const SERVER_URL = "http://127.0.0.1:8000/";
 
 function createExportButton() {
   if (document.getElementById("custom-export-btn")) return;
-
-  // Target the action toolbar containing copy/share icons on the translated panel
-  const targetContainer = document.body;
 
   const btn = document.createElement("button");
   btn.id = "custom-export-btn";
@@ -25,46 +22,48 @@ function createExportButton() {
   `;
 
   btn.addEventListener("click", async () => {
-    const sourceText = document.querySelector("textarea")?.value || "";
-    // Grab translated text from the main output container
-    const translatedEl =
-      document.querySelector("span[lang] span") ||
-      document.querySelector(".c-wiz span[lang]");
-    const translatedText = translatedEl ? translatedEl.innerText : "";
+    const sourceText =
+      document
+        .querySelector('textarea[aria-label="Source text"]')
+        ?.value.trim() ||
+      document.querySelector("textarea")?.value.trim() ||
+      "";
+
+    const translatedText =
+      document.querySelector('span[jsname="W297wb"]')?.innerText.trim() ||
+      document.querySelector(".ryNqvb")?.innerText.trim() ||
+      document
+        .querySelector("[data-language-for-alternatives] span")
+        ?.innerText.trim() ||
+      "";
 
     if (!sourceText || !translatedText) {
       alert("No translation found to export.");
       return;
     }
 
-    const payload = {
-      source: sourceText,
-      translation: translatedText,
-      timestamp: new Date().toISOString(),
-    };
-
     btn.innerText = "Sending...";
     btn.disabled = true;
 
     try {
-      const response = await fetch(SERVER_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const params = new URLSearchParams({
+        english: sourceText,
+        russian: translatedText,
       });
 
-      if (response.ok) {
-        btn.innerText = "Saved!";
-        setTimeout(() => {
-          btn.innerText = "🚀 Save";
-          btn.disabled = false;
-        }, 2000);
-      } else {
-        throw new Error("Server error");
+      const response = await fetch(`${SERVER_URL}?${params}`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
       }
-    } catch (err) {
-      console.error("Export failed:", err);
+
+      btn.innerText = "Saved!";
+    } catch (error) {
+      console.error("Export failed:", error);
       btn.innerText = "Failed";
+    } finally {
       setTimeout(() => {
         btn.innerText = "🚀 Save";
         btn.disabled = false;
@@ -72,13 +71,14 @@ function createExportButton() {
     }
   });
 
-  targetContainer.appendChild(btn);
+  document.body.appendChild(btn);
 }
 
-// Observe DOM updates for dynamic SPAs
-const observer = new MutationObserver(() => {
-  createExportButton();
+const observer = new MutationObserver(createExportButton);
+
+observer.observe(document.body, {
+  childList: true,
+  subtree: true,
 });
 
-observer.observe(document.body, { childList: true, subtree: true });
 createExportButton();
