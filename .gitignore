@@ -1,2 +1,3 @@
-venv
-requirements.txt
+server/venv
+server/requirements.txt
+.env
