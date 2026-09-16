@@ -1,30 +1,81 @@
-from fastapi import FastAPI, Response, status
+import json
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-import json
 
-app = FastAPI()
-engine = create_engine("sqlite:///./app.db", echo=True)
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "app.db"
+TABLES_META_PATH = BASE_DIR / "tables_number.txt"
+GENERAL_TABLE = "GeneralTable"
+PAGE_WORD_LIMIT = 50
+DEFAULT_TABLE_NUMBERS = {"number_of_pages": 0, "number_of_words": 0}
 
-number_of_pages = 0
-number_of_words = 0
-
-with open("./tables_number.txt", "ar") as f:
-    if f.read() == "":
-        f.write(json.dumps({'number_of_pages' : number_of_pages, "number_of_words" : number_of_words}))
-    else:
-        tables_number = json.loads(f.read())
-        number_of_pages = tables_number['number_of_pages']
-        number_of_words = tables_number['number_of_words']
+app = FastAPI(title="Translate Extension API")
+engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
 
 
+class Word(BaseModel):
+    english: str
+    russian: str
 
 
+def save_table_numbers(table_numbers: dict[str, int]) -> None:
+    with TABLES_META_PATH.open("w", encoding="utf-8") as file:
+        json.dump(table_numbers, file)
 
 
+def load_table_numbers() -> dict[str, int]:
+    if not TABLES_META_PATH.exists():
+        save_table_numbers(DEFAULT_TABLE_NUMBERS.copy())
 
+    try:
+        with TABLES_META_PATH.open("r", encoding="utf-8") as file:
+            loaded_data = json.load(file)
+    except (json.JSONDecodeError, OSError):
+        save_table_numbers(DEFAULT_TABLE_NUMBERS.copy())
+        return DEFAULT_TABLE_NUMBERS.copy()
+
+    if not isinstance(loaded_data, dict):
+        save_table_numbers(DEFAULT_TABLE_NUMBERS.copy())
+        return DEFAULT_TABLE_NUMBERS.copy()
+
+    normalized = DEFAULT_TABLE_NUMBERS.copy()
+    for key, value in loaded_data.items():
+        if key in normalized and isinstance(value, int):
+            normalized[key] = value
+
+    save_table_numbers(normalized)
+    return normalized
+
+
+def ensure_general_table() -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE IF NOT EXISTS "{GENERAL_TABLE}" '
+                "(English TEXT PRIMARY KEY, Russian TEXT)"
+            )
+        )
+
+
+def ensure_page_table(page_index: int) -> str:
+    table_name = f"Table{page_index}"
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE IF NOT EXISTS "{table_name}" '
+                "(WordIndex INTEGER, English TEXT, Russian TEXT)"
+            )
+        )
+    return table_name
+
+
+ensure_general_table()
+table_numbers = load_table_numbers()
 
 
 app.add_middleware(
@@ -35,27 +86,92 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Word(BaseModel):
-    english:str
-    russian:str
+
+@app.post("/")
+@app.post("/words")
+def add_word(
+    word: Word | None = None,
+    english: str | None = None,
+    russian: str | None = None,
+    response: Response | None = None,
+):
+    if word is None:
+        if english is None or russian is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide a word payload or both english and russian values.",
+            )
+        word = Word(english=english, russian=russian)
+
+    word.english = word.english.strip()
+    word.russian = word.russian.strip()
+
+    if not word.english or not word.russian:
+        raise HTTPException(status_code=400, detail="English and Russian values cannot be empty.")
+
+    table_numbers = load_table_numbers()
+
+    if table_numbers["number_of_pages"] == 0 or table_numbers["number_of_words"] >= PAGE_WORD_LIMIT:
+        current_page_index = table_numbers["number_of_pages"]
+        table_name = ensure_page_table(current_page_index)
+        table_numbers["number_of_pages"] += 1
+        table_numbers["number_of_words"] = 0
+        save_table_numbers(table_numbers)
+    else:
+        current_page_index = table_numbers["number_of_pages"] - 1
+        table_name = ensure_page_table(current_page_index)
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(f'INSERT INTO "{GENERAL_TABLE}" (English, Russian) VALUES (:english, :russian)'),
+                {"english": word.english, "russian": word.russian},
+            )
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=400, detail="Word already exists in the database.") from exc
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    f'INSERT INTO "{table_name}" (WordIndex, English, Russian) '
+                    "VALUES (:word_index, :english, :russian)"
+                ),
+                {
+                    "word_index": table_numbers["number_of_words"],
+                    "english": word.english,
+                    "russian": word.russian,
+                },
+            )
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=500, detail="Failed to save word to page table.") from exc
+
+    table_numbers["number_of_words"] += 1
+    save_table_numbers(table_numbers)
+
+    if response is not None:
+        response.status_code = 200
+
+    return {"status": "success", "word": word.model_dump()}
 
 
+@app.get("/{page_index}")
+def get_all_words(page_index: int):
+    table_name = f"Table{page_index}"
 
-@app.post('/')
-def addNewWord(word : Word, response : Response):
-    
-    print('try to add a new word: ' + word.english)
-    if number_of_pages == 0:
-        with engine.begin() as conn:
-            conn.execute(text(f"CREATE TABLE Table{number_of_pages} (WordIndex INT, English TEXT, Russian TEXT)"))
-        number_of_pages = number_of_pages + 1
+    try:
+        with engine.begin() as connection:
+            rows = connection.execute(
+                text(f'SELECT WordIndex, English, Russian FROM "{table_name}" ORDER BY WordIndex'),
+            ).mappings().all()
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=404, detail=f"Page {page_index} not found.") from exc
 
-    
-
-    
-    
-
-
-@app.get('/')
-def getAllWords():
-    pass
+    return [
+        {
+            "word_index": row["WordIndex"],
+            "english": row["English"],
+            "russian": row["Russian"],
+        }
+        for row in rows
+    ]
