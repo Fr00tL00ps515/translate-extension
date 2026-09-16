@@ -1,4 +1,5 @@
-const SERVER_URL = "http://127.0.0.1:8000/";
+const SERVER_URL =
+  "https://extension-container.kindbush-6e59b04c.germanywestcentral.azurecontainerapps.io";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const wordsContainer = document.getElementById("words");
