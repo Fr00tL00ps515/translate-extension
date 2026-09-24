@@ -1,12 +1,20 @@
 import useState from "react";
-import Table from "./components/Table.jsx";
+import { AllWords } from "./components/AllWords.jsx";
+
+const SERVERURL = "http://localhost:8000";
+
+const ALLWORDS = "allWords";
+const SINGLEPAGE = "singlePage";
+
 export function App() {
-  const [page, setPage] = useState(0);
+  const [view, setView] = useState(ALLWORDS);
   return (
-    <div>
-      <button>prev</button>
-      <button>next</button>
-      <Table page={page} />
-    </div>
+    <>
+      <button onClick={() => setView(view == ALLWORDS ? SINGLEPAGE : ALLWORDS)}>
+        change view
+      </button>
+
+      <AllWords serverURL={SERVERURL} />
+    </>
   );
 }

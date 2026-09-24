@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
@@ -52,6 +52,7 @@ def load_table_numbers() -> dict[str, int]:
     return normalized
 
 
+# Table with all saved words
 def ensure_general_table() -> None:
     with engine.begin() as connection:
         connection.execute(
@@ -88,12 +89,10 @@ app.add_middleware(
 
 
 @app.post("/")
-@app.post("/words")
 def add_word(
     word: Word | None = None,
     english: str | None = None,
     russian: str | None = None,
-    response: Response | None = None,
 ):
     if word is None:
         if english is None or russian is None:
@@ -116,7 +115,6 @@ def add_word(
         table_name = ensure_page_table(current_page_index)
         table_numbers["number_of_pages"] += 1
         table_numbers["number_of_words"] = 0
-        save_table_numbers(table_numbers)
     else:
         current_page_index = table_numbers["number_of_pages"] - 1
         table_name = ensure_page_table(current_page_index)
@@ -149,14 +147,13 @@ def add_word(
     table_numbers["number_of_words"] += 1
     save_table_numbers(table_numbers)
 
-    if response is not None:
-        response.status_code = 200
+   
 
-    return {"status": "success", "word": word.model_dump()}
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.get("/{page_index}")
-def get_all_words(page_index: int):
+@app.get("page/{page_index}")
+def get_page(page_index: int):
     table_name = f"Table{page_index}"
 
     try:
@@ -175,3 +172,22 @@ def get_all_words(page_index: int):
         }
         for row in rows
     ]
+
+@app.get("/all")
+def get_all_words():
+    table_numbers = load_table_numbers()
+    res = []
+    try:
+        with engine.begin() as connection:
+            for page in range(table_numbers['number_of_pages']):
+                table_name = f"Table{page}"
+                rows = connection.execute(
+                                text(f'SELECT WordIndex, English, Russian FROM "{table_name}" ORDER BY WordIndex'),
+                            ).all()
+                for row in rows:
+                    res.append({"word_index" : row[0], "english" : row[1], "russian" : row[2]})
+
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=404, detail="Something went wrong") from exc
+
+    return res
