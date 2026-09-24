@@ -17,18 +17,19 @@ export function AllWords({ serverURL }) {
       }
     }
     fetchData();
-  }, []);
+  }, [serverURL]);
 
-  const w = [
-    <tr>
+  const rows = [
+    <tr key="header">
       <th>index</th>
       <th>english</th>
       <th>russian</th>
     </tr>,
   ];
-  for (word in words) {
-    w.push(
-      <tr>
+
+  for (const word of words) {
+    rows.push(
+      <tr key={word.word_index}>
         <td>{word.word_index}</td>
         <td>{word.english}</td>
         <td>{word.russian}</td>
@@ -36,5 +37,9 @@ export function AllWords({ serverURL }) {
     );
   }
 
-  return <table>{w}</table>;
+  return (
+    <table>
+      <tbody>{rows}</tbody>
+    </table>
+  );
 }
