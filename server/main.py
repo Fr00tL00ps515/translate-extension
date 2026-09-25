@@ -136,7 +136,7 @@ def add_word(
                     "VALUES (:word_index, :english, :russian)"
                 ),
                 {
-                    "word_index": table_numbers["number_of_words"],
+                    "word_index": table_numbers["number_of_words"] + 1,
                     "english": word.english,
                     "russian": word.russian,
                 },

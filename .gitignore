@@ -1,3 +1,6 @@
 server/venv
 server/requirements.txt
+server/app.db
+server/tables_number.txt
+server/__pycache__
 .env

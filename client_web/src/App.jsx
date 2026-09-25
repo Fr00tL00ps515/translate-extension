@@ -1,4 +1,4 @@
-import useState from "react";
+import { useState } from "react";
 import { AllWords } from "./components/AllWords.jsx";
 
 const SERVERURL = "http://localhost:8000";

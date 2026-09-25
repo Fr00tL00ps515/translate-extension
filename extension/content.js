@@ -1,5 +1,4 @@
-const SERVER_URL =
-  "https://extension-container.kindbush-6e59b04c.germanywestcentral.azurecontainerapps.io";
+const SERVER_URL = "http://localhost:8000/";
 
 function createExportButton() {
   if (document.getElementById("custom-export-btn")) return;
