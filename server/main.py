@@ -152,7 +152,7 @@ def add_word(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.get("page/{page_index}")
+@app.get("/page/{page_index}")
 def get_page(page_index: int):
     table_name = f"Table{page_index}"
 
@@ -191,3 +191,8 @@ def get_all_words():
         raise HTTPException(status_code=404, detail="Something went wrong") from exc
 
     return res
+
+
+@app.get("/number-of-pages")
+def get_number_of_pages():
+    return {"number_of_pages" : table_numbers['number_of_pages']}

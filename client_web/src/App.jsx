@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AllWords } from "./components/AllWords.jsx";
+import { SinglePage } from "./components/SinglePage.jsx";
 
 const SERVERURL = "http://localhost:8000";
 
@@ -14,7 +15,11 @@ export function App() {
         change view
       </button>
 
-      <AllWords serverURL={SERVERURL} />
+      {view == ALLWORDS ? (
+        <AllWords serverURL={SERVERURL} />
+      ) : (
+        <SinglePage serverURL={SERVERURL} />
+      )}
     </>
   );
 }
