@@ -6,7 +6,7 @@ A personal vocabulary learning ecosystem designed to capture, organize, and revi
 
 ## 📌 What This Project Does
 
-This project bridges the gap between active web browsing and spaced vocabulary practice. Whenever you look up a word on Google Translate, a dedicated browser extension enables saving that word pair (English–Russian) directly into your personal database with a single click. 
+This project bridges the gap between active web browsing and spaced vocabulary practice. Whenever you look up a word on Google Translate, a dedicated browser extension enables saving that word pair (English–Russian) directly into your personal database with a single click.
 
 The saved vocabulary is then partitioned into fixed-size pages (50 words per page) and accessible via a web dashboard for structured review.
 
@@ -37,11 +37,13 @@ The saved vocabulary is then partitioned into fixed-size pages (50 words per pag
 ```
 
 ### 1. Browser Extension Layer (`extension/`)
+
 - **Technology**: Chrome Extensions Manifest V3, Content Script.
 - **Mechanism**: Injects a floating **🚀 Save** button into `https://translate.google.com/*`.
 - **Data Capture**: Uses a `MutationObserver` to watch DOM changes on Google Translate. When clicked, it parses the source query textarea and the translated text container, serializes the word pair, and sends an asynchronous HTTP `POST` request to the backend service.
 
 ### 2. Backend Service Layer (`server/`)
+
 - **Technology**: FastAPI, SQLAlchemy, SQLite, Pydantic.
 - **Storage Strategy**:
   - **`GeneralTable`**: Acts as the global primary store ensuring uniqueness (`English TEXT PRIMARY KEY`). Duplicate entries are rejected with HTTP 400.
@@ -54,6 +56,7 @@ The saved vocabulary is then partitioned into fixed-size pages (50 words per pag
   - `GET /number-of-pages`: Returns total allocated pages.
 
 ### 3. Web Dashboard Layer (`client_web/`)
+
 - **Technology**: React 19, Vite, CSS Modules.
 - **Components**:
   - **`AllWords`**: Fetches and renders all dictionary entries in a unified overview table.
@@ -62,44 +65,6 @@ The saved vocabulary is then partitioned into fixed-size pages (50 words per pag
 
 ---
 
-## 🚢 Deployment Architecture & Automation
+## 🚢 Deployment
 
-For continuous personal use on a private VPS (e.g. Ubuntu / Debian) or home server, the system can be deployed and kept alive using a single deployment script and a reverse proxy (e.g. Nginx).
-
-### Deployment Workflow Concept
-
-1. **Frontend Build**: Compiles the React application into static production assets (`client_web/dist/`).
-2. **Backend Setup**: Initializes a Python virtual environment, installs requirements, and runs Uvicorn behind a process manager (such as `systemd` or `pm2`).
-3. **Static Serving / Reverse Proxy**: Nginx serves the built React assets and proxies API requests (`/api` or `:8000`) to the Uvicorn daemon.
-
-### Example Automated Deployment Script (`deploy.sh`)
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_DIR="$PROJECT_ROOT/server"
-CLIENT_DIR="$PROJECT_ROOT/client_web"
-VENV_DIR="$SERVER_DIR/.venv"
-
-echo "=== [1/3] Setting up Python backend environment ==="
-if [ ! -d "$VENV_DIR" ]; then
-    python3 -m venv "$VENV_DIR"
-fi
-source "$VENV_DIR/bin/activate"
-pip install --upgrade pip
-pip install -r "$SERVER_DIR/requirements.txt"
-
-echo "=== [2/3] Building React Frontend ==="
-cd "$CLIENT_DIR"
-npm install
-npm run build
-
-echo "=== [3/3] Starting / Restarting Services ==="
-# Example using systemd or background process:
-# systemctl --user restart translate-backend.service
-# Or running directly via Uvicorn in production mode:
-echo "Deployment complete! Run Uvicorn with:"
-echo "uvicorn main:app --app-dir $SERVER_DIR --host 0.0.0.0 --port 8000 --workers 2"
-```
+The project can be deployed serverlessly on **Azure Container Apps (ACA)** using an automated deployment script (e.g., with the Azure CLI). This allows running the backend container with automatic scaling, persistent file storage for the SQLite database, and public HTTPS ingress for the browser extension and web dashboard.
